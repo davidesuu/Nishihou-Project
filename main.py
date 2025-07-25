@@ -2,9 +2,9 @@ import os
 import pygame
 import sys
 import pygamepal
+import math
 from spritesheet import Spritesheet
 from random import randint
-
 
 
 #general setup
@@ -20,6 +20,9 @@ clock = pygame.time.Clock()  # FPS
 black = (0,0,0)
 green = '#108058'
 
+
+
+
 #Player Class
 class Player(pygame.sprite.Sprite):
     def __init__(self, groups):
@@ -27,6 +30,7 @@ class Player(pygame.sprite.Sprite):
         self.sprite_sheet = Spritesheet('images\sproutsland\Characters\Basic_Spritesheet.png')
         self.image = self.sprite_sheet.get_image(17, 16 , 14, 16, 3, black)
         self.rect = self.image.get_frect()
+        self.rect = self.rect.inflate(40,40)
         self.rect.center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2)
         self.direction = pygame.math.Vector2()
         self.speed = 300
@@ -40,6 +44,8 @@ class Player(pygame.sprite.Sprite):
 
         #MASK 
         self.mask = pygame.mask.from_surface(self.image)
+        self.mask_surf = self.mask.to_surface()
+        self.image = self.mask_surf
 
 
     def attack_timer(self):
@@ -143,13 +149,14 @@ class Friend_npc(pygame.sprite.Sprite):
         self.sprite_sheet = Spritesheet('images/Npc_Spritesheet.png')
         self.image = self.sprite_sheet.get_image(16,24,16,24,2,green)
         self.rect = self.image.get_frect(center= (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2))
-        self.rect = self.rect.inflate(10,10)
         self.pos = pygame.math.Vector2(self.rect.center)
         self.direction = pygame.math.Vector2()  # Direção que o player envia
         self.speed = 290  
 
         #Mask
         self.mask = pygame.mask.from_surface(self.image)
+        self.mask_surf = self.mask.to_surface()
+        self.image = self.mask_surf
 
     def update(self, dt):
         # Move apenas se player estiver apertando E e perto
@@ -184,6 +191,25 @@ class Camera:
         # retorna a posição do target ajustada pela câmera
         return target.rect.topleft - self.offset
 
+class Bullet(pygame.sprite.Sprite):
+
+    def __init__(self, angle):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load('images/arrow.png').convert()
+        self.image.set_colorkey((0,0,0))
+        self.rect = self.image.get_rect()
+        self.rect.center = (WINDOW_WIDTH / 2 , WINDOW_HEIGHT / 2)
+        self.angle = angle
+        self.counter = 0
+        self.speedx = 5
+        self.speedy = 5
+
+    def update(self):
+
+        self.rect.x += self.speedx * math.cos(math.radians(self.angle)) 
+        self.rect.y += self.speedy * math.sin(math.radians(self.angle))
+        if(self.rect.right > 640 or self.rect.left < 0 or self.rect.bottom > 480 or self.rect.top < 0):
+            self.kill()
 
 class TransitionManager:
     def __init__(self):
@@ -245,6 +271,11 @@ player = Player(all_sprites)
 friend_sprites = pygame.sprite.Group()
 friend = Friend_npc(all_sprites, friend_sprites)
 bouncing_sprite = BouncingSprite(all_sprites)
+bullet_sprite1 = pygame.sprite.Group()
+angle = 0
+for x in range(12):
+    bullet_sprite1.add(Bullet(angle))
+    angle += 30
 
 
 
@@ -278,6 +309,7 @@ while running:
     # Atualizações
 
     all_sprites.update(dt)
+    bullet_sprite1.update()
     camera.update(WINDOW_WIDTH, WINDOW_HEIGHT, MAP_WIDTH, MAP_HEIGHT)
 
     # Desenho
