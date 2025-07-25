@@ -16,21 +16,38 @@ pygame.display.set_caption("TOMONI")
 running = True
 clock = pygame.time.Clock()  # FPS
 
+#Colors
+black = (0,0,0)
+green = '#108058'
+
 #Player Class
 class Player(pygame.sprite.Sprite):
     def __init__(self, groups):
         super().__init__(groups)
         self.sprite_sheet = Spritesheet('images\sproutsland\Characters\Basic_Spritesheet.png')
-        self.image = self.sprite_sheet.get_image(17, 16 , 14, 16, 3)
+        self.image = self.sprite_sheet.get_image(17, 16 , 14, 16, 3, black)
         self.rect = self.image.get_frect()
         self.rect.center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2)
         self.direction = pygame.math.Vector2()
         self.speed = 300
 
+        #cooldown 
+        self.can_attack = True
+        self.attack_cooldown_duration = 400
+        self.attack_time = 0
+
+    
+
         #MASK 
-        mask = pygame.mask.from_surface(self.image)
-        mask_surf = mask.to_surface()
-        self.image = mask_surf
+        self.mask = pygame.mask.from_surface(self.image)
+
+
+    def attack_timer(self):
+        if not self.can_attack:
+            current_time = pygame.time.get_ticks()
+            if current_time - self.attack_time >= self.attack_cooldown_duration:
+                self.can_attack = True
+
 
     def holding(self):
         keys = pygame.key.get_pressed()
@@ -53,7 +70,7 @@ class Player(pygame.sprite.Sprite):
         self.colisao('vertical')
 
     def colisao(self, direcao):
-        if pygame.sprite.spritecollide(self, friend_sprites, False):
+        if pygame.sprite.spritecollide(self, friend_sprites, False, pygame.sprite.collide_mask):
             if direcao == 'horizontal': #colsisão horizontal
                 if self.direction.x > 0: self.rect.right = friend.rect.left
                 if self.direction.x < 0: self.rect.left = friend.rect.right
@@ -65,19 +82,36 @@ class Player(pygame.sprite.Sprite):
 
         self.input()
         self.movimento(dt)
+        
         recent_key = pygame.key.get_just_pressed()
-        if recent_key[pygame.K_SPACE]:
-            print("Sword attack!")
-
+        if recent_key[pygame.K_SPACE] and self.can_attack:
+            Sword(sword_surf, self.rect.midtop, all_sprites)
+            self.can_attack = False
+            self.attack_time = pygame.time.get_ticks()
+        self.attack_timer()
 
         self.holding()
 
+#sword class
+class Sword(pygame.sprite.Sprite):
+    def __init__(self, surf, pos, groups):
+        super().__init__(groups)
+        self.image = surf
+        self.rect = self.image.get_frect(midbottom = pos)
+        # Disappear after a short time
+        self.spawn_time = pygame.time.get_ticks()
+        self.lifetime = 100  # Sword will exist for 100 milliseconds
+
+    def update(self, dt):
+        if pygame.time.get_ticks() - self.spawn_time >= self.lifetime:
+            self.kill()
+    
 #random sprite class
 class RandomSprite(pygame.sprite.Sprite):
     def __init__(self, groups):
         super().__init__(groups)
         self.sprite_sheet = Spritesheet('../tomoni/images/main_sprite.png')
-        self.image = self.sprite_sheet.get_image(105, 340, 18, 20, 2)
+        self.image = self.sprite_sheet.get_image(105, 340, 18, 20, 2,black)
         self.rect = self.image.get_frect(center = (randint(0, WINDOW_WIDTH), randint(0, WINDOW_HEIGHT)))
 
 
@@ -86,7 +120,7 @@ class BouncingSprite(pygame.sprite.Sprite):
     def __init__(self, groups):
         super().__init__(groups)
         self.sprite_sheet = Spritesheet('../tomoni/images/main_sprite.png')
-        self.image = self.sprite_sheet.get_image(80,302,18,20,2)
+        self.image = self.sprite_sheet.get_image(80,302,18,20,2,black)
         self.rect = self.image.get_frect(center = (randint(0, WINDOW_WIDTH), randint(0, WINDOW_HEIGHT)))
         self.direction = pygame.math.Vector2(1,1)
         self.speed = 200
@@ -106,13 +140,16 @@ class BouncingSprite(pygame.sprite.Sprite):
 class Friend_npc(pygame.sprite.Sprite):
     def __init__(self, groups, friend_groups):
         super().__init__(groups, friend_groups)
-        self.image = pygame.Surface((30, 30))
-        self.image.fill((255, 0, 0))
+        self.sprite_sheet = Spritesheet('images/Npc_Spritesheet.png')
+        self.image = self.sprite_sheet.get_image(16,24,16,24,2,green)
         self.rect = self.image.get_frect(center= (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2))
+        self.rect = self.rect.inflate(10,10)
         self.pos = pygame.math.Vector2(self.rect.center)
         self.direction = pygame.math.Vector2()  # Direção que o player envia
-
         self.speed = 290  
+
+        #Mask
+        self.mask = pygame.mask.from_surface(self.image)
 
     def update(self, dt):
         # Move apenas se player estiver apertando E e perto
@@ -179,7 +216,7 @@ def display_score():
     score_text = font.render(str(current_time), True, (255, 255, 255))
     score_rect = score_text.get_frect(topleft=(10, 10))
     display_surface.blit(score_text, score_rect)
-    corner = pygame.draw.rect(display_surface, "red",score_rect, 5,10)
+    corner = pygame.draw.rect(display_surface, "red",score_rect.inflate(20,20), 5,10)
 
 
 
@@ -189,7 +226,11 @@ transition_manager = TransitionManager()
 
 
         
+#Spritesheets
+sword_spritesheet = Spritesheet('images/sword_sprite.png') 
 
+#surfaces
+sword_surf = Spritesheet.get_image(sword_spritesheet,15,10,10,5,5, black)
 
 #plain surface
 surf = pygame.Surface((100,100))
@@ -198,13 +239,15 @@ surf.fill(('blue'))
 surf2 = pygame.Surface((1120,1024))
 surf2.fill(('red'))
 
-#player setup
+#Creating Sprites
 all_sprites = pygame.sprite.Group()
-friend_sprites = pygame.sprite.Group()
 player = Player(all_sprites)
+friend_sprites = pygame.sprite.Group()
 friend = Friend_npc(all_sprites, friend_sprites)
-
 bouncing_sprite = BouncingSprite(all_sprites)
+
+
+
 MAP_WIDTH, MAP_HEIGHT = 1120, 1024  # defina o tamanho real do mapa
 camera = Camera(MAP_WIDTH, MAP_HEIGHT)
 camera.set_target(player)
@@ -214,11 +257,9 @@ for i in range(10):
 
 
 
-
-
-#link sprite
-player_direction = pygame.math.Vector2(1,1) #vector for movement
-player_speed = 300
+#Time event
+bullet_event = pygame.event.custom_type()
+pygame.time.set_timer(bullet_event, 500)
 
 
 while running:
@@ -228,7 +269,7 @@ while running:
     #event loop
     for event in pygame.event.get():
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE and transition_manager.transition is None:
+            if event.key == pygame.K_l and transition_manager.transition is None:
                 transition_manager.start_transition(surf, surf2, duration=1000)
         if event.type == pygame.QUIT:
             running = False
