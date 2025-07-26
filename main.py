@@ -2,10 +2,8 @@ import os
 import pygame
 import sys
 import pygamepal
-import math
 from spritesheet import Spritesheet
 from random import randint
-
 
 #general setup
 pygame.init()
@@ -19,7 +17,6 @@ clock = pygame.time.Clock()  # FPS
 #Colors
 black = (0,0,0)
 green = '#108058'
-
 
 
 
@@ -97,6 +94,15 @@ class Player(pygame.sprite.Sprite):
         self.attack_timer()
 
         self.holding()
+
+class Danmaku(pygame.sprite.Sprite):
+    def __init__(self,surf, pos, groups):
+        super().__init__(groups)
+        self.image = surf
+        self.rect = self.image.get_frect(center = pos)
+
+    
+
 
 #sword class
 class Sword(pygame.sprite.Sprite):
@@ -191,25 +197,6 @@ class Camera:
         # retorna a posição do target ajustada pela câmera
         return target.rect.topleft - self.offset
 
-class Bullet(pygame.sprite.Sprite):
-
-    def __init__(self, angle):
-        pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.image.load('images/arrow.png').convert()
-        self.image.set_colorkey((0,0,0))
-        self.rect = self.image.get_rect()
-        self.rect.center = (WINDOW_WIDTH / 2 , WINDOW_HEIGHT / 2)
-        self.angle = angle
-        self.counter = 0
-        self.speedx = 5
-        self.speedy = 5
-
-    def update(self):
-
-        self.rect.x += self.speedx * math.cos(math.radians(self.angle)) 
-        self.rect.y += self.speedy * math.sin(math.radians(self.angle))
-        if(self.rect.right > 640 or self.rect.left < 0 or self.rect.bottom > 480 or self.rect.top < 0):
-            self.kill()
 
 class TransitionManager:
     def __init__(self):
@@ -254,9 +241,11 @@ transition_manager = TransitionManager()
         
 #Spritesheets
 sword_spritesheet = Spritesheet('images/sword_sprite.png') 
+danmaku_spritesheet = Spritesheet('images/danmaku_spritesheet.png')
 
 #surfaces
 sword_surf = Spritesheet.get_image(sword_spritesheet,15,10,10,5,5, black)
+danmaku_surf = danmaku_spritesheet.get_image(322,73,16,16,2,black)
 
 #plain surface
 surf = pygame.Surface((100,100))
@@ -271,11 +260,6 @@ player = Player(all_sprites)
 friend_sprites = pygame.sprite.Group()
 friend = Friend_npc(all_sprites, friend_sprites)
 bouncing_sprite = BouncingSprite(all_sprites)
-bullet_sprite1 = pygame.sprite.Group()
-angle = 0
-for x in range(12):
-    bullet_sprite1.add(Bullet(angle))
-    angle += 30
 
 
 
@@ -302,6 +286,9 @@ while running:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_l and transition_manager.transition is None:
                 transition_manager.start_transition(surf, surf2, duration=1000)
+        if event.type == bullet_event:
+            x, y = randint(0,WINDOW_WIDTH), randint(0,WINDOW_HEIGHT)
+            Danmaku(danmaku_surf, (x,y),all_sprites)
         if event.type == pygame.QUIT:
             running = False
             
@@ -309,7 +296,6 @@ while running:
     # Atualizações
 
     all_sprites.update(dt)
-    bullet_sprite1.update()
     camera.update(WINDOW_WIDTH, WINDOW_HEIGHT, MAP_WIDTH, MAP_HEIGHT)
 
     # Desenho
@@ -319,8 +305,8 @@ while running:
     # Se houver transição, ela desenha por cima e controla bloqueio de jogo
     transicao_finalizada = transition_manager.update_draw(display_surface)
     
-
     if transicao_finalizada:
+
     # SE NÃO estiver em transição, desenhe normalmente seu jogo
         display_surface.fill('darkgray')
         display_surface.blit(mapTexture, (-camera.offset.x, -camera.offset.y))
