@@ -2,6 +2,7 @@ import os
 import pygame
 import sys
 import pygamepal
+import math
 from spritesheet import Spritesheet
 from random import randint
 
@@ -96,12 +97,32 @@ class Player(pygame.sprite.Sprite):
         self.holding()
 
 class Danmaku(pygame.sprite.Sprite):
+    angle_global = 0  # variável de classe para controlar o ângulo da espiral
+
     def __init__(self,surf, pos, groups):
         super().__init__(groups)
         self.image = surf
         self.rect = self.image.get_frect(center = pos)
+        # Define o ângulo da bala com base em uma variável global crescente
+        angle_rad = math.radians(Danmaku.angle_global)
+        self.direction = pygame.Vector2(math.cos(angle_rad), math.sin(angle_rad))
+        self.speed = 200
 
+        # Aumenta o ângulo global para o próximo projétil
+        Danmaku.angle_global = (Danmaku.angle_global + 10) % 360
+
+    def update(self, dt):
+        move = self.direction * self.speed * dt
+        self.rect.centerx += move.x
+        self.rect.centery += move.y
     
+class Boss_fight(pygame.sprite.Sprite):
+    def __init__(self, surf, groups, boss_sprites):
+        super().__init__(groups,boss_sprites)
+        self.image = surf
+        self.rect = self.image.get_frect(center = (100,100))
+        self.pos = pygame.Vector2()
+        self.cooldown = 2000
 
 
 #sword class
@@ -233,6 +254,8 @@ def display_score():
 
 
 
+
+
 mapTexture = pygame.image.load(os.path.join('images','map.png'))
 mapTexture = pygame.transform.scale(mapTexture, (WINDOW_WIDTH, WINDOW_HEIGHT))
 transition_manager = TransitionManager()
@@ -242,10 +265,12 @@ transition_manager = TransitionManager()
 #Spritesheets
 sword_spritesheet = Spritesheet('images/sword_sprite.png') 
 danmaku_spritesheet = Spritesheet('images/danmaku_spritesheet.png')
+cirno_spritesheet = Spritesheet('images/cirno_spritesheet.png')
 
 #surfaces
 sword_surf = Spritesheet.get_image(sword_spritesheet,15,10,10,5,5, black)
 danmaku_surf = danmaku_spritesheet.get_image(322,73,16,16,2,black)
+cirno_surf = cirno_spritesheet.get_image(180,166,41,53,2,None)
 
 #plain surface
 surf = pygame.Surface((100,100))
@@ -259,6 +284,8 @@ all_sprites = pygame.sprite.Group()
 player = Player(all_sprites)
 friend_sprites = pygame.sprite.Group()
 friend = Friend_npc(all_sprites, friend_sprites)
+boss_sprites = pygame.sprite.Group()
+cirno = Boss_fight(cirno_surf,all_sprites,boss_sprites)
 bouncing_sprite = BouncingSprite(all_sprites)
 
 
@@ -274,8 +301,7 @@ for i in range(10):
 
 #Time event
 bullet_event = pygame.event.custom_type()
-pygame.time.set_timer(bullet_event, 500)
-
+pygame.time.set_timer(bullet_event, 100) #Isso vai definiro quao suave vai ser o padrao
 
 while running:
     #delta time
@@ -287,10 +313,13 @@ while running:
             if event.key == pygame.K_l and transition_manager.transition is None:
                 transition_manager.start_transition(surf, surf2, duration=1000)
         if event.type == bullet_event:
-            x, y = randint(0,WINDOW_WIDTH), randint(0,WINDOW_HEIGHT)
-            Danmaku(danmaku_surf, (x,y),all_sprites)
+            center_pos = cirno.rect.center
+            for i in range(2):  # Quantidade de danmaku no ataque
+                Danmaku(danmaku_surf, center_pos, all_sprites)
+
         if event.type == pygame.QUIT:
             running = False
+
             
   #drawing the game
     # Atualizações
