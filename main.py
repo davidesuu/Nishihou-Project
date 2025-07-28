@@ -25,25 +25,40 @@ green = '#108058'
 class Player(pygame.sprite.Sprite):
     def __init__(self, groups):
         super().__init__(groups)
-        self.sprite_sheet = Spritesheet('images\sproutsland\Characters\Basic_Spritesheet.png')
-        self.image = self.sprite_sheet.get_image(17, 16 , 14, 16, 3, black)
+        self.sprite_sheet = Spritesheet('images\player_spritesheet.png')
+        self.image = self.sprite_sheet.get_image(7, 5 , 23, 46, 1, black)
         self.rect = self.image.get_frect()
-        self.rect = self.rect.inflate(40,40)
         self.rect.center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2)
-        self.direction = pygame.math.Vector2()
+        self.direction = pygame.math.Vector2() 
         self.speed = 300
+        self.current_speed = 0
+
+        #logica da vida
+        self.lives = 7
+        self.invicible = False
+        self.invicible_time = 2000
+        self.last_hit_time = 0
+        
+        #efeito piscando apos ser atingido
+        self.frame_count = 0
 
         #cooldown 
         self.can_attack = True
-        self.attack_cooldown_duration = 400
-        self.attack_time = 0
+        self.shoot_cooldown = 200   #mileseconds between the knives
+        self.last_shot_time = 0
 
-    
+        #logica do raio da hitbox
+        self.hitbox_radius = 4
+        self.hitbox_image = pygame.image.load("images/hitbox.png").convert_alpha()
+        self.hitbox_offset = pygame.Vector2(self.hitbox_image.get_width() // 2, self.hitbox_image.get_height() // 2)
+
+        #velocidade da sakuya quando aperta shift
+        self.slow_speed = 150
+
 
         #MASK 
         self.mask = pygame.mask.from_surface(self.image)
-        self.mask_surf = self.mask.to_surface()
-        self.image = self.mask_surf
+
 
 
     def attack_timer(self):
@@ -53,91 +68,119 @@ class Player(pygame.sprite.Sprite):
                 self.can_attack = True
 
 
-    def holding(self):
-        keys = pygame.key.get_pressed()
-        if self.rect.colliderect(friend.rect) and keys[pygame.K_e]:
-            friend.direction = self.direction
-        else:
-            friend.direction = pygame.math.Vector2()
-
-
     def input(self):
         keys = pygame.key.get_pressed()
         self.direction.x = int(keys[pygame.K_RIGHT]) - int(keys[pygame.K_LEFT])
         self.direction.y = int(keys[pygame.K_DOWN]) - int(keys[pygame.K_UP])
         self.direction = self.direction.normalize() if self.direction.length() > 0 else self.direction  #iguala a velocidade nas diagonais
 
-    def movimento(self,dt): #separação horizontal e vertical p/ melhor colisão
-        self.rect.x += self.direction.x * self.speed * dt
-        self.colisao('horizontal')
-        self.rect.y += self.direction.y * self.speed * dt
-        self.colisao('vertical')
+        if keys[pygame.K_LSHIFT]:
+            self.current_speed = self.slow_speed
+        else:
+            self.current_speed = self.speed
 
-    def colisao(self, direcao):
-        if pygame.sprite.spritecollide(self, friend_sprites, False, pygame.sprite.collide_mask):
-            if direcao == 'horizontal': #colsisão horizontal
-                if self.direction.x > 0: self.rect.right = friend.rect.left
-                if self.direction.x < 0: self.rect.left = friend.rect.right
-            else: #colsisão vertical
-                if self.direction.y > 0: self.rect.bottom = friend.rect.top
-                if self.direction.y < 0: self.rect.top = friend.rect.bottom
+    def movimento(self,dt):
+        self.rect.x += self.direction.x * self.current_speed * dt
+        self.rect.y += self.direction.y * self.current_speed * dt
+
+    def draw_hitbox(self, surface):
+        x = self.rect.centerx - self.hitbox_offset.x
+        y = self.rect.centery - self.hitbox_offset.y
+        surface.blit(self.hitbox_image, (x, y))
+
+
 
     def update(self, dt):
 
         self.input()
         self.movimento(dt)
         
-        recent_key = pygame.key.get_just_pressed()
-        if recent_key[pygame.K_SPACE] and self.can_attack:
-            Sword(sword_surf, self.rect.midtop, all_sprites)
-            self.can_attack = False
-            self.attack_time = pygame.time.get_ticks()
-        self.attack_timer()
 
-        self.holding()
+        current_time = pygame.time.get_ticks()
+        recent_key = pygame.key.get_pressed()
+        if recent_key[pygame.K_SPACE]:
+            if current_time - self.last_shot_time >= self.shoot_cooldown:
+                Bullet(knives_surf, self.rect.midtop, all_sprites)
+                self.last_shot_time = current_time
+        
+        if self.invicible:
+            #efeito piscando
+            self.frame_count += 1
+            if self.frame_count%10 < 5:
+                self.image.set_alpha(0)
+            else:
+                self.image.set_alpha(255)
+            #tempo do iframe apos ser atingido
+            now = pygame.time.get_ticks()
+            if now - self.last_hit_time >= self.invicible_time:
+                self.invicible = False
+
+
 
 class Danmaku(pygame.sprite.Sprite):
     angle_global = 0  # variável de classe para controlar o ângulo da espiral
 
-    def __init__(self,surf, pos, groups):
-        super().__init__(groups)
+    def __init__(self,surf, pos, *groups):
+        super().__init__(*groups)
         self.image = surf
         self.rect = self.image.get_frect(center = pos)
         # Define o ângulo da bala com base em uma variável global crescente
         angle_rad = math.radians(Danmaku.angle_global)
         self.direction = pygame.Vector2(math.cos(angle_rad), math.sin(angle_rad))
         self.speed = 200
-
+        self.start_time = pygame.time.get_ticks()
+        self.lifetime = 6000
         # Aumenta o ângulo global para o próximo projétil
         Danmaku.angle_global = (Danmaku.angle_global + 10) % 360
+
+        #mask
+        self.mask = pygame.mask.from_surface(self.image)
 
     def update(self, dt):
         move = self.direction * self.speed * dt
         self.rect.centerx += move.x
         self.rect.centery += move.y
+        
+        if pygame.time.get_ticks() - self.start_time >= self.lifetime:
+            self.kill()
+
     
 class Boss_fight(pygame.sprite.Sprite):
     def __init__(self, surf, groups, boss_sprites):
         super().__init__(groups,boss_sprites)
         self.image = surf
         self.rect = self.image.get_frect(center = (100,100))
-        self.pos = pygame.Vector2()
+        self.pos = pygame.Vector2(1,0)
+
+        self.mask = pygame.mask.from_surface(self.image)
+
         self.cooldown = 2000
+        self.speed = 500
+    def update(self,dt):
+        self.rect.x += self.pos.x * self.speed * dt
+        if self.rect.right > WINDOW_WIDTH:
+            self.rect.right = WINDOW_WIDTH 
+            self.pos.x *= -1
+        elif self.rect.left < 0:
+            self.rect.left = 0
+            self.pos.x *= -1
 
-
-#sword class
-class Sword(pygame.sprite.Sprite):
+#Bullet class
+class Bullet(pygame.sprite.Sprite):
     def __init__(self, surf, pos, groups):
         super().__init__(groups)
         self.image = surf
         self.rect = self.image.get_frect(midbottom = pos)
+        self.speed = 300
+
         # Disappear after a short time
         self.spawn_time = pygame.time.get_ticks()
         self.lifetime = 100  # Sword will exist for 100 milliseconds
 
     def update(self, dt):
-        if pygame.time.get_ticks() - self.spawn_time >= self.lifetime:
-            self.kill()
+        self.rect.y -= self.speed * dt
+        if self.rect.bottom < 0:
+            self.kill() 
     
 #random sprite class
 class RandomSprite(pygame.sprite.Sprite):
@@ -194,56 +237,6 @@ class Friend_npc(pygame.sprite.Sprite):
 
 
 
-class Camera:
-    def __init__(self, width, height):
-        self.offset = pygame.Vector2(0, 0)
-        self.width = width
-        self.height = height
-        self.target = None
-
-
-    def set_target(self, target):
-        self.target = target
-
-    def update(self, window_width, window_height, map_width, map_height):
-        if self.target:
-            self.offset.x = self.target.rect.centerx - window_width // 2
-            self.offset.y = self.target.rect.centery - window_height // 2
-
-            # Limita a câmera aos limites do mapa
-            self.offset.x = max(0, min(self.offset.x, map_width - window_width))
-            self.offset.y = max(0, min(self.offset.y, map_height - window_height))
-
-    def apply(self, target):
-        # retorna a posição do target ajustada pela câmera
-        return target.rect.topleft - self.offset
-
-
-class TransitionManager:
-    def __init__(self):
-        self.transition = None
-
-    def start_transition(self, from_surface, to_surface, duration=1000, easing=None):
-        easing = easing if easing else pygamepal.easeLinear
-        self.transition = pygamepal.TransitionFade(
-            from_surface,
-            to_surface,
-            duration=duration,
-            easingFunction=easing
-        )
-
-    def update_draw(self, display_surface):
-        if self.transition:
-            if not self.transition.finished:
-                self.transition.update()
-                self.transition.draw(display_surface)
-                return False  # transição em andamento
-            else:
-                self.transition = None
-                return True   # transição terminou
-        return True  # sem transição, continua normal
-
-
 def display_score():
     font = pygame.font.Font(None, 36)
     current_time = pygame.time.get_ticks() // 10
@@ -253,24 +246,49 @@ def display_score():
     corner = pygame.draw.rect(display_surface, "red",score_rect.inflate(20,20), 5,10)
 
 
+def collisions():
+    if player.invicible:
+        return 
+    
+
+    player_center = pygame.Vector2(player.rect.center)
+    for danmaku in danmaku_sprites:
+        danmaku_center = pygame.Vector2(danmaku.rect.center)
+        distance = player_center.distance_to(danmaku_center)
+        if distance < player.hitbox_radius:
+                print("Colidiu!!")
+                player.lives -= 1
+                player.invicible = True
+                player.last_hit_time = pygame.time.get_ticks()
+                player.frame_count = 0
+                player.rect.center = (WINDOW_WIDTH//2, WINDOW_HEIGHT - 50)
+    
+                if player.lives <= 0:
+                    player.kill()
+#----------------------Player colisions------------------------------------------------------------------------------
+
+
+    
+
+
 
 
 
 mapTexture = pygame.image.load(os.path.join('images','map.png'))
 mapTexture = pygame.transform.scale(mapTexture, (WINDOW_WIDTH, WINDOW_HEIGHT))
-transition_manager = TransitionManager()
+
 
 
         
 #Spritesheets
-sword_spritesheet = Spritesheet('images/sword_sprite.png') 
+knives_spritesheet = Spritesheet('images/knives.png') 
 danmaku_spritesheet = Spritesheet('images/danmaku_spritesheet.png')
 cirno_spritesheet = Spritesheet('images/cirno_spritesheet.png')
 
-#surfaces
-sword_surf = Spritesheet.get_image(sword_spritesheet,15,10,10,5,5, black)
-danmaku_surf = danmaku_spritesheet.get_image(322,73,16,16,2,black)
-cirno_surf = cirno_spritesheet.get_image(180,166,41,53,2,None)
+#surfaces #14,46
+knives_surf = knives_spritesheet.get_image(59,1,46,31,1, black)
+danmaku_surf = danmaku_spritesheet.get_image(322,73,16,16,1,black)
+cirno_surf = cirno_spritesheet.get_image(180,166,41,53,1,black)
 
 #plain surface
 surf = pygame.Surface((100,100))
@@ -282,6 +300,7 @@ surf2.fill(('red'))
 #Creating Sprites
 all_sprites = pygame.sprite.Group()
 player = Player(all_sprites)
+danmaku_sprites = pygame.sprite.Group()
 friend_sprites = pygame.sprite.Group()
 friend = Friend_npc(all_sprites, friend_sprites)
 boss_sprites = pygame.sprite.Group()
@@ -290,9 +309,8 @@ bouncing_sprite = BouncingSprite(all_sprites)
 
 
 
-MAP_WIDTH, MAP_HEIGHT = 1120, 1024  # defina o tamanho real do mapa
-camera = Camera(MAP_WIDTH, MAP_HEIGHT)
-camera.set_target(player)
+
+
 
 for i in range(10):
     RandomSprite(all_sprites)
@@ -300,22 +318,23 @@ for i in range(10):
 
 
 #Time event
-bullet_event = pygame.event.custom_type()
-pygame.time.set_timer(bullet_event, 100) #Isso vai definiro quao suave vai ser o padrao
+danmaku_event = pygame.event.custom_type()
+pygame.time.set_timer(danmaku_event, 100) #Isso vai definiro quao suave vai ser o padrao
 
 while running:
     #delta time
     dt = clock.tick()/1000  # FPS
 
+    #Teclas pressionadas
+    keys = pygame.key.get_pressed()
+
     #event loop
     for event in pygame.event.get():
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_l and transition_manager.transition is None:
-                transition_manager.start_transition(surf, surf2, duration=1000)
-        if event.type == bullet_event:
+        if event.type == danmaku_event:
             center_pos = cirno.rect.center
             for i in range(2):  # Quantidade de danmaku no ataque
-                Danmaku(danmaku_surf, center_pos, all_sprites)
+                center_pos = cirno.rect.center
+                Danmaku(danmaku_surf, center_pos, (all_sprites,danmaku_sprites))
 
         if event.type == pygame.QUIT:
             running = False
@@ -325,24 +344,17 @@ while running:
     # Atualizações
 
     all_sprites.update(dt)
-    camera.update(WINDOW_WIDTH, WINDOW_HEIGHT, MAP_WIDTH, MAP_HEIGHT)
 
-    # Desenho
+
     display_surface.fill('darkgray')
-    display_surface.blit(mapTexture, (-camera.offset.x, -camera.offset.y))
-
-    # Se houver transição, ela desenha por cima e controla bloqueio de jogo
-    transicao_finalizada = transition_manager.update_draw(display_surface)
-    
-    if transicao_finalizada:
-
-    # SE NÃO estiver em transição, desenhe normalmente seu jogo
-        display_surface.fill('darkgray')
-        display_surface.blit(mapTexture, (-camera.offset.x, -camera.offset.y))
-        for sprite in all_sprites:
-            display_surface.blit(sprite.image, camera.apply(sprite))
+    display_surface.blit(mapTexture, (0,0))
+    for sprite in all_sprites:
+        display_surface.blit(sprite.image, sprite.rect)
+    if keys[pygame.K_LSHIFT]:
+        player.draw_hitbox(display_surface)
+       
     display_score()
-
+    collisions()
 
 
     
