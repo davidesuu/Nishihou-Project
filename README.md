@@ -1,10 +1,13 @@
-UNIVERSIDADE FEDERAL DO MARANHÃO - CIENCIA DA COMPUTAÇÃO (CP)
-ALGORITMOS 1 - TRABALHO FINAL
-PROFESSOR: Carlos Salles
-AUTOR: David Martins Costa
+# 西方 Project
 
-Projeto final da disciplina de algoritmos 1 , desenvolvido em python usando
-a biblioteca Pygame.
+**UNIVERSIDADE FEDERAL DO MARANHÃO — CIÊNCIA DA COMPUTAÇÃO (CP)**  
+**ALGORITMOS I — TRABALHO FINAL**  
+**PROFESSOR:** Carlos Salles  
+**AUTOR:** David Martins Costa  
+
+
+Este é o projeto final da disciplina de Algoritmos I, desenvolvido em **Python** utilizando apenas a biblioteca **Pygame**.
+
 
 
 **西方 Project** é um jogo 2D que busca inspiração no jogo Touhou project do gênero *danmaku* (bullet hell), . Ele foi desenvolvido com o objetivo de avalisar se o discente aprendeu os conceitos básicos de programação e a sintaxe / lógica de python e programação estruturada.
